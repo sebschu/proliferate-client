@@ -15,7 +15,7 @@ git clone https://github.com/sebschu/proliferate-client
 pip install -e proliferate-client/
 ```
 
-Add environment variables in your Bash (or other shell) profile (e.g., `~/.bash_profile` on most Macs). Add the following lines:
+Add environment variables in your Bash (or other shell) profile (e.g., `~/.bash_profile` on most Macs or `~/.profile` on Ubuntu and Debian). Add the following lines:
 
 ```
 # PROLIFERATE
@@ -23,7 +23,7 @@ export PROLIFERATE_ACCESS_KEY="<API_ACCESS_KEY>"
 export PROLIFERATE_SECRET="<API_SECRET>"
 ```
 
-(Make sure to close and open the Terminal again after making these changes.)
+After adding those lines, make sure to run `source ~/.bash_profile` (or the equivalent file on other systems) to apply the changes you made.
 
 ## How to use proliferate
 
