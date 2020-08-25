@@ -1,0 +1,380 @@
+#!/usr/bin/env python
+
+import json, argparse, os, csv, time, requests, re, textwrap, sys
+from datetime import datetime
+from collections import OrderedDict
+from wsgiref.handlers import format_date_time
+from httpsig.requests_auth import HTTPSignatureAuth
+
+
+BOLD_START = "\033[1m"
+BOLD_END = "\033[0;0m"
+
+# check if environment variables have been set
+if "PROLIFERATE_ACCESS_KEY" not in os.environ or "PROLIFERATE_SECRET" not in os.environ:
+  print(f"{BOLD_START}Error{BOLD_END}: API key and secret is not set")
+  print(f"Make sure that the PROLIFERATE_ACCESS_KEY and PROLIFERATE_SECRET environment variables are set.")
+  sys.exit(1)
+  
+
+
+API_HOST=os.environ["PROLIFERATE_HOST"] if "PROLIFERATE_HOST" in os.environ else "proliferate.alps.science"
+API_SCHEME=os.environ["PROLIFERATE_SCHEME"] if "PROLIFERATE_SCHEME" in os.environ else "https"
+PROLIFERATE_BASE_URL=f"{API_SCHEME}://{API_HOST}"
+API_BASE_URL = f"{API_SCHEME}://{API_HOST}"
+PROLIFERATE_ACCESS_KEY = os.environ["PROLIFERATE_ACCESS_KEY"]
+PROLIFERATE_SECRET = os.environ["PROLIFERATE_SECRET"]
+
+
+
+
+CONFIG_OPTIONS = OrderedDict([("name", "name"), ("notes", "notes"), ("completion_URL", "completion_URL")])
+CONFIG_CONDITION_OPTIONS = OrderedDict([("name", "name"), ("experiment_URL", "experiment_URL"), ("participants", "participants")])
+
+
+def main():
+  parser = argparse.ArgumentParser(prog="proliferate", description='Interface with Proliferate.')
+  subparsers = parser.add_subparsers(title='subcommands', dest="subcommand")
+  
+  subparsers.add_parser("post", aliases=["posthit"], help='post new experiment')
+  
+  gr_subparser = subparsers.add_parser("getresults", help='download results (use --sandbox to download sandbox results.)')
+  gr_subparser.add_argument("--sandbox", action="store_true", help="download sanbox results")
+  
+  subparsers.add_parser("info", help='display details and status of experiment')
+  
+  subparsers.add_parser("push", aliases=["update"], help='update experiment on Proliferate server')
+  
+  subparsers.add_parser("pull", help='download configuration from Proliferate server')
+  
+  cl_subparser = subparsers.add_parser("clone", help='clone experiment from Proliferate server')
+  cl_subparser.add_argument("experiment_id", help="experiment ID", type=str)
+  
+  parser.add_argument('experimentname', type=str, metavar="label",
+                          help="You must have at a label that corresponds to the " +
+                            "experiment you want to work with." +
+                            "This will be the beginning of the name of the config file (everything " +
+                            "before the dot). [label].config.")
+   
+   
+  # display help message if user provides no subcommand
+  if len(sys.argv)==1:
+    print(parser.format_help(), file=sys.stderr)
+    sys.exit(1)
+
+  args = parser.parse_args()
+  
+  subcommand = args.subcommand
+  label = args.experimentname
+
+  
+  if subcommand == "post":
+      exp_config = parse_config(label)
+      post_exp(label, exp_config)
+  elif subcommand == "getresults":
+      results = get_results(label, debug=args.sandbox)
+  elif subcommand == "info":
+      get_info(label)
+  elif subcommand == "push":
+      exp_config = parse_config(label)
+      push_exp(label, exp_config)
+  elif subcommand == "pull":
+      get_info(label, update_cfg=True)
+  elif subcommand == "clone":
+      clone_exp(label, args.experiment_id)
+      
+      
+
+def post_exp(experiment_label, config):
+  exp_id_filename = f".{experiment_label}.exps"
+  if os.path.isfile(exp_id_filename):
+    print(f"{BOLD_START}Error{BOLD_END}: This experiment has already been posted!\n")
+    print(f"Run \"proliferate push {experiment_label}\" to add or edit conditions.")
+    print(f"Run \"proliferate info {experiment_label}\" to monitor progress and display information about the experiment.")
+    sys.exit(1)
+  
+  success = True
+  with open(exp_id_filename, "a") as exp_id_file:
+    print("-" * 80)
+    response = api_call("/apiv1/experiment/", "post", data=config)
+    if response.status_code < 300:
+      exp_obj = response.json()
+      print("Succesfully created experiment with {} condition(s)!".format(len(exp_obj["conditions"])))
+      print(exp_obj["id"], file=exp_id_file)
+    else:
+      print(f"{BOLD_START}Error{BOLD_END}: Failed to post experiment.")
+      print(f"Details:")
+      print(response.json())
+      success = False
+  if not success:
+    os.remove(exp_id_filename)
+    return
+  get_info(experiment_label)
+
+def push_exp(experiment_label, config):
+  exp_id_filename = f".{experiment_label}.exps"
+  if not os.path.isfile(exp_id_filename):
+    print(f"{BOLD_START}Error{BOLD_END}: This experiment hasn't been posted or cloned.\n")
+    print(f"Run \"proliferate post {experiment_label}\" to post a new experiment.")
+    print(f"Run \"proliferate clone <experiment id> {experiment_label}\" to clone the experiment.")
+    sys.exit(1)
+  
+  with open(exp_id_filename, "r") as exp_id_file:
+    exp_id = exp_id_file.readline().strip()
+    response = api_call(f"/apiv1/experiment/{exp_id}/", "put", data=config)
+    if response.status_code < 300:
+      exp_obj = response.json()
+      print("Succesfully updated experiment with {} condition(s)!".format(len(exp_obj["conditions"])))
+    else:
+      print(f"{BOLD_START}Error{BOLD_END}: Failed to update experiment.")
+      print(f"Details:")
+      print(response.text)
+      return
+
+  get_info(experiment_label)
+    
+  
+def get_results(experiment_label, debug=False):
+  exp_id_filename = f".{experiment_label}.exps"
+  if not os.path.isfile(exp_id_filename):
+    print(f"{BOLD_START}Error{BOLD_END}: This experiment hasn't been posted or cloned.\n")
+    print(f"Run \"proliferate post {experiment_label}\" to post a new experiment.")
+    print(f"Run \"proliferate clone <experiment id> {experiment_label}\" to clone the experiment.")
+    sys.exit(1)
+
+  prefix = experiment_label
+  if debug:
+    prefix += "-sandbox"
+  print("Retrieving results...")
+  print("-" * 80)
+  with open(exp_id_filename, "r") as exp_id_file:
+    exp_id = exp_id_file.readline().strip()
+    response = api_call(f"/apiv1/experiment/{exp_id}/get_result_urls/?prefix={prefix}&debug={debug}", "get")
+    if response.status_code < 300:
+      result_urls = response.json()["result_urls"]
+      for url in result_urls:
+        filename = url["filename"]
+        print(f"Retrieving {filename}...")
+        api_call(url["url"], "get_file", filename=url["filename"]) 
+      print("-" * 80)
+    else:
+      print(f"{BOLD_START}Error{BOLD_END}: Failed to get results.")
+      print(f"Details:")
+      print(response.json())
+      return
+  return None
+
+
+def update_config(experiment_label, experiment_info):
+  config_filename = experiment_label + ".config"
+  if os.path.isfile(config_filename):
+    print(f"Backing up old config to {config_filename}.bak")
+    os.rename(config_filename, f"{config_filename}.bak")
+  with open(config_filename, "w") as new_config_file:
+    new_config = OrderedDict()
+    for k, v in CONFIG_OPTIONS.items():
+      new_config[v] =  experiment_info[k]
+    new_config["conditions"] = []
+    for condition in experiment_info["conditions"]:
+      c = OrderedDict()
+      for k, v in CONFIG_CONDITION_OPTIONS.items():
+        c[v] = condition[k]
+      new_config["conditions"].append(c)
+    json.dump(new_config, new_config_file, indent=2)
+  
+  print(f"Config written to {config_filename}")
+  
+      
+def get_info(experiment_label, update_cfg=False):
+  exp_id_filename = f".{experiment_label}.exps"
+  
+  if not os.path.isfile(exp_id_filename):
+    print(f"{BOLD_START}Error{BOLD_END}: This experiment hasn't been posted or cloned.\n")
+    print(f"Run \"proliferate post {experiment_label}\" to post a new experiment.")
+    print(f"Run \"proliferate clone <experiment id> {experiment_label}\" to clone the experiment.")
+    sys.exit(1)
+
+  prefix = experiment_label
+  print("Loading info...") if not update_cfg else print("Updating config...")
+  with open(exp_id_filename, "r") as exp_id_file:
+    exp_id = exp_id_file.readline().strip()
+    response = api_call(f"/apiv1/experiment/{exp_id}/", "get")
+    if response.status_code < 300:
+      result = response.json()
+      created_at = parse_json_date(result['created_at'])
+      if not update_cfg:
+        print("-" * 80)
+        print(f"{BOLD_START}Name{BOLD_END}: {result['name']}")
+        print("\n".join(textwrap.wrap(f"{BOLD_START}Notes{BOLD_END}: {result['notes']}", 80)))
+        print(f"{BOLD_START}Created at{BOLD_END}: {created_at:%Y-%m-%d %I:%M %p}")
+        print(f"{BOLD_START}Prolific completion URL{BOLD_END}: {result['completion_URL']}")
+        print(f"{BOLD_START}Experiment URL{BOLD_END}: {PROLIFERATE_BASE_URL}{result['experiment_URL']}")
+        print(f"{BOLD_START}Sandbox URL{BOLD_END}: {PROLIFERATE_BASE_URL}{result['sandbox_experiment_URL']}")
+        print("")
+        print(f"{BOLD_START}Conditions{BOLD_END}:")
+        for condition in result['conditions']:
+           print(" " * 2 + f"{BOLD_START}Name{BOLD_END}: {condition['name']}")
+           if condition['stats']['requested'] > 0:
+             print(" " * 2 + f"{BOLD_START}Progress{BOLD_END}: {condition['stats']['completed']/condition['stats']['requested']*100:.0f}% ({condition['stats']['started']} started, {condition['stats']['completed']} completed, {condition['stats']['abandoned']} abandoned, {condition['stats']['requested']} requested)")
+           else:
+             print(" " * 2 + f"{BOLD_START}Progress{BOLD_END}: {condition['stats']['completed']} completed ({condition['stats']['started']} started, {condition['stats']['completed']} completed, {condition['stats']['abandoned']} abandoned, ∞ requested)")           
+           print(" " * 2 + f"{BOLD_START}Experiment{BOLD_END}: {condition['experiment_URL']}")
+           print(" " * 2 + f"{BOLD_START}Sandbox URL{BOLD_END}: {PROLIFERATE_BASE_URL}{result['sandbox_experiment_URL']}?condition={condition['id']}")
+           print()
+           
+        print("-" * 80)
+        print()
+      
+      if update_cfg:
+        update_config(experiment_label, result)
+    else:
+      print(f"{BOLD_START}Error{BOLD_END}: Failed to load experiment info.")
+      print(f"Details:")
+      print(response.json())
+      
+    
+  return None
+          
+def clone_exp(experiment_label, experiment_id):
+  exp_id_filename = f".{experiment_label}.exps"
+  if os.path.isfile(exp_id_filename):
+    print(f"{BOLD_START}Error{BOLD_END}: This experiment has already been cloned!\n")
+    print(f"Run \"proliferate pull {experiment_label}\" to download the latest config.")
+    print(f"Run \"proliferate info {experiment_label}\" to monitor progress and display information about the experiment.")
+    sys.exit(1)
+
+  success = True
+  with open(exp_id_filename, "w") as exp_id_file:
+    response = api_call(f"/apiv1/experiment/{experiment_id}/", "get")
+    if response.status_code < 300:
+      update_config(experiment_label, response.json())
+      print(experiment_id, file=exp_id_file)
+      print()
+      print(f"Sucessfully cloned experiment {experiment_label}.")
+    else:
+      print(f"{BOLD_START}Error{BOLD_END}: Failed to pull experiment with id {experiment_id}.")
+      print(f"Details:")
+      print(response.json())
+      success = False
+  
+  if not success:
+    os.remove(exp_id_filename)
+  
+  
+def parse_json_date(date):
+  date_re = re.compile(r"([0-9][0-9]):([0-9][0-9])$")
+  date = date_re.sub("\\1\\2", date)
+  return datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%f%z")
+
+def rewrite_submiterator_config(config):
+  
+  def _rename(config, old, new, default=None):
+    if new not in config and old in config:
+      config[new] = config[old]
+      del config[old]
+      return
+    
+    if default is not None:
+      config[new] = default
+  
+  _rename(config, "title", "name")
+  _rename(config, "description", "notes")
+  _rename(config, "experimentURL", "experiment_URL")
+  
+  if ("conditions" not in config 
+        and "experiment_URL" in config 
+        and "numberofassignments" in config):
+    _rename(config, "condition", "condition_name", "condition1")
+    config["conditions"] = []
+    c = {}
+    c["experiment_URL"] = config["experiment_URL"]
+    c["participants"] = int(config["numberofassignments"])
+    c["name"] = config["condition_name"]
+    del config["condition_name"]
+    del config["numberofassignments"]
+    config["conditions"].append(c)
+  
+  return config
+
+
+def parse_config(experiment_label):
+  config_filename = experiment_label + ".config"
+
+  if not os.path.isfile(config_filename):
+    print(f"{BOLD_START}Error{BOLD_END}: Could not find file {config_filename}!")
+    sys.exit(1)
+
+  # load config file
+  with open(config_filename, "r") as config_file:
+    config = json.load(config_file)
+  
+  config = rewrite_submiterator_config(config)
+    
+    
+  
+  
+  proliferate_config = {}
+  for k, v in CONFIG_OPTIONS.items():
+    if v not in config:
+      print(f"{BOLD_START}Error{BOLD_END}: Parameter '{v}' is missing in configuration file.")
+      sys.exit(1)
+    proliferate_config[v] =  config[v]
+    del config[v]
+      
+  if "conditions" not in config or len(config["conditions"]) < 1:
+    print(f"{BOLD_START}Error{BOLD_END}: No conditions defined in configuration file.")
+    sys.exit(1)
+  proliferate_config["conditions"] = []
+  for condition in config["conditions"]:
+    c = {}
+    for k, v in CONFIG_CONDITION_OPTIONS.items():
+      if v not in condition:
+        print(f"{BOLD_START}Error{BOLD_END}: Condition parameter '{v}' is missing in configuration file.")
+        sys.exit(1)
+      c[v] = condition[v]
+    proliferate_config["conditions"].append(c)
+  del config["conditions"]
+  
+  if len(config.keys()) > 0:
+    unknown_keys = ", ".join(config.keys())
+    print(f"{BOLD_START}Warning{BOLD_END}: The following unknown parameters were ignored: {unknown_keys}")
+    
+  return proliferate_config
+  
+
+
+def api_call(path, method, data=None, filename=None):
+  signature_headers = ['(request-target)', 'accept', 'date', 'host']
+  now_date_header = format_date_time(time.time())
+  headers = {
+    'Host': API_HOST,
+    'Accept': 'application/json',
+    'Date': now_date_header
+  }
+    
+  auth = HTTPSignatureAuth(key_id=PROLIFERATE_ACCESS_KEY, secret=PROLIFERATE_SECRET,
+                           algorithm='hmac-sha256',
+                           headers=signature_headers)
+  
+  
+  url = API_BASE_URL + path
+  if method.lower() == "get":
+    req = requests.get(url, auth=auth, headers=headers)
+  elif method.lower() == "post":
+    req = requests.post(url, auth=auth, headers=headers, json=data)
+  elif method.lower() == "put":
+    req = requests.put(url, auth=auth, headers=headers, json=data)
+  elif method.lower() == "get_file":
+      req = requests.get(url, auth=auth, headers=headers, stream=True)
+      with open(filename, 'wb') as fd:
+          for chunk in req.iter_content(chunk_size=128):
+            fd.write(chunk)
+      
+
+  return req
+  
+
+if __name__ == '__main__':
+  main()
+    
+  
