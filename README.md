@@ -6,13 +6,9 @@ The behavior is similar to various versions of [Submiterator](https://github.com
 
 ## Installation
 
-Using `pip`:
 
-```
-pip install proliferate
-```
 
-Alternatively you can also install the package from source:
+You can install the package using pip:
 
 ```
 git clone https://github.com/sebschu/proliferate-client
