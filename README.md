@@ -1,8 +1,8 @@
 # Proliferate CLI client
 
-A tool for managing experiments on [https://proliferate.alps.science](Proliferate). This tool makes it easy to create new experiments to be published on [https://prolific.co](Prolific) and download data.
+A tool for managing experiments on [Proliferate](https://proliferate.alps.science). This tool makes it easy to create new experiments to be published on [Prolific](https://prolific.co) and to download data.
 
-The behavior is similar to various versions of [https://github.com/sebschu/Submiterator](Submiterator) but is intended to be used with Proliferate and Prolific.
+The behavior is similar to various versions of [Submiterator](https://github.com/sebschu/Submiterator) but is intended to be used with Proliferate and Prolific.
 
 ## Installation
 
