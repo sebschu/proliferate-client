@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
   name="proliferate",
-  version="0.9.0",
+  version="0.9.1",
   author="Sebastian Schuster",
   author_email="sebschu@gmail.com",
   description="command line tool to interface with a Proliferate server",

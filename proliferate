@@ -51,7 +51,7 @@ def main():
   cl_subparser.add_argument("experiment_id", help="experiment ID", type=str)
   
   parser.add_argument('experimentname', type=str, metavar="label",
-                          help="You must have at a label that corresponds to the " +
+                          help="You must have a label that corresponds to the " +
                             "experiment you want to work with." +
                             "This will be the beginning of the name of the config file (everything " +
                             "before the dot). [label].config.")
@@ -99,7 +99,7 @@ def post_exp(experiment_label, config):
     response = api_call("/apiv1/experiment/", "post", data=config)
     if response.status_code < 300:
       exp_obj = response.json()
-      print("Succesfully created experiment with {} condition(s)!".format(len(exp_obj["conditions"])))
+      print("Successfully created experiment with {} condition(s)!".format(len(exp_obj["conditions"])))
       print(exp_obj["id"], file=exp_id_file)
     else:
       print(f"{BOLD_START}Error{BOLD_END}: Failed to post experiment.")
@@ -124,7 +124,7 @@ def push_exp(experiment_label, config):
     response = api_call(f"/apiv1/experiment/{exp_id}/", "put", data=config)
     if response.status_code < 300:
       exp_obj = response.json()
-      print("Succesfully updated experiment with {} condition(s)!".format(len(exp_obj["conditions"])))
+      print("Successfully updated experiment with {} condition(s)!".format(len(exp_obj["conditions"])))
     else:
       print(f"{BOLD_START}Error{BOLD_END}: Failed to update experiment.")
       print(f"Details:")
@@ -280,6 +280,8 @@ def rewrite_submiterator_config(config):
   _rename(config, "title", "name")
   _rename(config, "description", "notes")
   _rename(config, "experimentURL", "experiment_URL")
+  _rename(config, "completionURL", "completion_URL")
+  
   
   if ("conditions" not in config 
         and "experiment_URL" in config 
