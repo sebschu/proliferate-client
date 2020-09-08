@@ -132,5 +132,35 @@ __MacOS/Linux__
    (The `--sandbox` parameter telles proliferate to download the sandbox data. When you are running an actual study, you can omit the `--sandbox` parameter to download participant's data.)
    
 
+## Modifying an existing MTurk experiment to work with Proliferate
+
+1. Include this snippet in `<head>` block of your experiment:
+    ```
+    <script src="https://proliferate.alps.science/static/js/proliferate.js"></script>
+    ```
     
+2. If you are using `mmturkey.js`, remove the `<script>` tag that imports it.
+
+3. At the end of the experiment call `proliferate.submit(data)` where `data` is an object with participants' responses and any other information you want to record.
+
+    If you are using the submiterator templates, this means replacing the following line with `proliferate.submit(data);`:
+    
+    ```
+    setTimeout(function() {turk.submit(exp.data);}, 1000);
+    ```
+    
+4. Optional but recommended
+
+    1. Remove uniqueturker or any scripts like that — they won’t work and are not necessary.
+    
+    2. Participants on Prolific may not know what a HIT is. Use Prolific-lingo instead:
+    
+        | MTurk | Prolific  |
+        |-------|-----------|
+        | HIT   | Requester |    
+        | Requester   | Researcher |    
+        | Worker/Turker   | Participant |  
+
+
+
    
