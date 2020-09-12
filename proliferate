@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import json, argparse, os, csv, time, requests, re, textwrap, sys
+import json, argparse, os, time, requests, re, textwrap, sys
 from datetime import datetime
 from collections import OrderedDict
 from wsgiref.handlers import format_date_time
