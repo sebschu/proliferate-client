@@ -10,6 +10,12 @@ from httpsig.requests_auth import HTTPSignatureAuth
 BOLD_START = "\033[1m"
 BOLD_END = "\033[0;0m"
 
+# Windows doesn't support bolding in console
+if sys.platform.startswith("win"):
+  BOLD_START = ""
+  BOLD_END = ""
+  
+
 # check if environment variables have been set
 if "PROLIFERATE_ACCESS_KEY" not in os.environ or "PROLIFERATE_SECRET" not in os.environ:
   print(f"{BOLD_START}Error{BOLD_END}: API key and secret is not set")
@@ -36,7 +42,7 @@ def main():
   parser = argparse.ArgumentParser(prog="proliferate", description='Interface with Proliferate.')
   subparsers = parser.add_subparsers(title='subcommands', dest="subcommand")
   
-  subparsers.add_parser("post", aliases=["posthit"], help='post new experiment')
+  subparsers.add_parser("post", aliases=["posthit"], help='create new experiment')
   
   gr_subparser = subparsers.add_parser("getresults", help='download results (use --sandbox to download sandbox results.)')
   gr_subparser.add_argument("--sandbox", action="store_true", help="download sanbox results")
@@ -88,8 +94,8 @@ def main():
 def post_exp(experiment_label, config):
   exp_id_filename = f".{experiment_label}.exps"
   if os.path.isfile(exp_id_filename):
-    print(f"{BOLD_START}Error{BOLD_END}: This experiment has already been posted!\n")
-    print(f"Run \"proliferate push {experiment_label}\" to add or edit conditions.")
+    print(f"{BOLD_START}Error{BOLD_END}: This experiment has already been created!\n")
+    print(f"Run \"proliferate push {experiment_label}\" to push an updated configuration to the server.")
     print(f"Run \"proliferate info {experiment_label}\" to monitor progress and display information about the experiment.")
     sys.exit(1)
   
@@ -99,10 +105,14 @@ def post_exp(experiment_label, config):
     response = api_call("/apiv1/experiment/", "post", data=config)
     if response.status_code < 300:
       exp_obj = response.json()
-      print("Successfully created experiment with {} condition(s)!".format(len(exp_obj["conditions"])))
+      if len(exp_obj["conditions"]) > 1:
+        print("Successfully created experiment with {} condition(s)!".format(len(exp_obj["conditions"])))
+      else:
+        print("Successfully created experiment!")
+        
       print(exp_obj["id"], file=exp_id_file)
     else:
-      print(f"{BOLD_START}Error{BOLD_END}: Failed to post experiment.")
+      print(f"{BOLD_START}Error{BOLD_END}: Failed to create experiment.")
       print(f"Details:")
       print(response.json())
       success = False
@@ -114,8 +124,8 @@ def post_exp(experiment_label, config):
 def push_exp(experiment_label, config):
   exp_id_filename = f".{experiment_label}.exps"
   if not os.path.isfile(exp_id_filename):
-    print(f"{BOLD_START}Error{BOLD_END}: This experiment hasn't been posted or cloned.\n")
-    print(f"Run \"proliferate post {experiment_label}\" to post a new experiment.")
+    print(f"{BOLD_START}Error{BOLD_END}: This experiment hasn't been created or cloned.\n")
+    print(f"Run \"proliferate post {experiment_label}\" to create a new experiment.")
     print(f"Run \"proliferate clone <experiment id> {experiment_label}\" to clone the experiment.")
     sys.exit(1)
   
@@ -137,8 +147,8 @@ def push_exp(experiment_label, config):
 def get_results(experiment_label, debug=False):
   exp_id_filename = f".{experiment_label}.exps"
   if not os.path.isfile(exp_id_filename):
-    print(f"{BOLD_START}Error{BOLD_END}: This experiment hasn't been posted or cloned.\n")
-    print(f"Run \"proliferate post {experiment_label}\" to post a new experiment.")
+    print(f"{BOLD_START}Error{BOLD_END}: This experiment hasn't been created or cloned.\n")
+    print(f"Run \"proliferate post {experiment_label}\" to create a new experiment.")
     print(f"Run \"proliferate clone <experiment id> {experiment_label}\" to clone the experiment.")
     sys.exit(1)
 
@@ -189,8 +199,8 @@ def get_info(experiment_label, update_cfg=False):
   exp_id_filename = f".{experiment_label}.exps"
   
   if not os.path.isfile(exp_id_filename):
-    print(f"{BOLD_START}Error{BOLD_END}: This experiment hasn't been posted or cloned.\n")
-    print(f"Run \"proliferate post {experiment_label}\" to post a new experiment.")
+    print(f"{BOLD_START}Error{BOLD_END}: This experiment hasn't been created or cloned.\n")
+    print(f"Run \"proliferate post {experiment_label}\" to create a new experiment.")
     print(f"Run \"proliferate clone <experiment id> {experiment_label}\" to clone the experiment.")
     sys.exit(1)
 
@@ -208,19 +218,35 @@ def get_info(experiment_label, update_cfg=False):
         print("\n".join(textwrap.wrap(f"{BOLD_START}Notes{BOLD_END}: {result['notes']}", 80)))
         print(f"{BOLD_START}Created at{BOLD_END}: {created_at:%Y-%m-%d %I:%M %p}")
         print(f"{BOLD_START}Prolific completion URL{BOLD_END}: {result['completion_URL']}")
-        print(f"{BOLD_START}Experiment URL{BOLD_END}: {PROLIFERATE_BASE_URL}{result['experiment_URL']}")
-        print(f"{BOLD_START}Sandbox URL{BOLD_END}: {PROLIFERATE_BASE_URL}{result['sandbox_experiment_URL']}")
+        print("  " + "\n  ".join(textwrap.wrap(f"(Participants will be redirected to this URL after completing the experiment. Make sure that this URL matches the completion URL of your study on Prolific.)", 78)))
+        
+        print()
         print("")
-        print(f"{BOLD_START}Conditions{BOLD_END}:")
-        for condition in result['conditions']:
-           print(" " * 2 + f"{BOLD_START}Name{BOLD_END}: {condition['name']}")
-           if condition['stats']['requested'] > 0:
-             print(" " * 2 + f"{BOLD_START}Progress{BOLD_END}: {condition['stats']['completed']/condition['stats']['requested']*100:.0f}% ({condition['stats']['started']} started, {condition['stats']['completed']} completed, {condition['stats']['abandoned']} abandoned, {condition['stats']['requested']} requested)")
-           else:
-             print(" " * 2 + f"{BOLD_START}Progress{BOLD_END}: {condition['stats']['completed']} completed ({condition['stats']['started']} started, {condition['stats']['completed']} completed, {condition['stats']['abandoned']} abandoned, ∞ requested)")           
-           print(" " * 2 + f"{BOLD_START}Experiment{BOLD_END}: {condition['experiment_URL']}")
-           print(" " * 2 + f"{BOLD_START}Sandbox URL{BOLD_END}: {PROLIFERATE_BASE_URL}{result['sandbox_experiment_URL']}?condition={condition['id']}")
-           print()
+        print(f"{BOLD_START}Study URL{BOLD_END}: {PROLIFERATE_BASE_URL}{result['experiment_URL']}")
+        print("  (Use this URL to publish your study on Prolific.)")
+        print("")
+        print(f"{BOLD_START}Sandbox URL{BOLD_END}: {PROLIFERATE_BASE_URL}{result['sandbox_experiment_URL']}")
+        print("  (Use this URL to test your experiment using the \"Preview\" function on Prolific.)")
+        print("")
+        if len (result['conditions']) > 1:
+          print(f"{BOLD_START}Conditions{BOLD_END}:")
+          for condition in result['conditions']:
+             print(" " * 2 + f"{BOLD_START}Name{BOLD_END}: {condition['name']}")
+             if condition['stats']['requested'] > 0:
+               print(" " * 2 + f"{BOLD_START}Progress{BOLD_END}: {condition['stats']['completed']/condition['stats']['requested']*100:.0f}% ({condition['stats']['started']} started, {condition['stats']['completed']} completed, {condition['stats']['abandoned']} abandoned, {condition['stats']['requested']} requested)")
+             else:
+               print(" " * 2 + f"{BOLD_START}Progress{BOLD_END}: {condition['stats']['completed']} completed ({condition['stats']['started']} started, {condition['stats']['completed']} completed, {condition['stats']['abandoned']} abandoned, ∞ requested)")           
+             print(" " * 2 + f"{BOLD_START}Experiment location{BOLD_END}: {condition['experiment_URL']}")
+             print(" " * 2 + f"{BOLD_START}Sandbox URL{BOLD_END}: {PROLIFERATE_BASE_URL}{result['sandbox_experiment_URL']}?condition={condition['id']}")
+             print()
+        elif len(result['conditions']) == 1:
+          condition = result['conditions'][0]
+          if condition['stats']['requested'] > 0:
+            print(f"{BOLD_START}Progress{BOLD_END}: {condition['stats']['completed']/condition['stats']['requested']*100:.0f}% ({condition['stats']['started']} started, {condition['stats']['completed']} completed, {condition['stats']['abandoned']} abandoned, {condition['stats']['requested']} requested)")
+          else:
+            print(f"{BOLD_START}Progress{BOLD_END}: {condition['stats']['completed']} completed ({condition['stats']['started']} started, {condition['stats']['completed']} completed, {condition['stats']['abandoned']} abandoned, ∞ requested)")           
+          print(f"{BOLD_START}Experiment location{BOLD_END}: {condition['experiment_URL']}")
+            
            
         print("-" * 80)
         print()
@@ -284,17 +310,23 @@ def rewrite_submiterator_config(config):
   
   
   if ("conditions" not in config 
-        and "experiment_URL" in config 
-        and "numberofassignments" in config):
+        and "experiment_URL" in config):
     _rename(config, "condition", "condition_name", "condition1")
     config["conditions"] = []
     c = {}
     c["experiment_URL"] = config["experiment_URL"]
-    c["participants"] = int(config["numberofassignments"])
+    c["participants"] = int(config["numberofassignments"]) if "numberofassignments" in config else 0
     c["name"] = config["condition_name"]
     del config["condition_name"]
-    del config["numberofassignments"]
+    del config["experiment_URL"]
+    if "numberofassignments" in config:
+      del config["numberofassignments"]
     config["conditions"].append(c)
+  
+  if "conditions" in config:
+    for c in config["conditions"]:
+      if "participants" not in c:
+        c["participants"] = 0
   
   return config
 
