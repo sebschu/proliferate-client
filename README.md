@@ -4,4 +4,4 @@ A tool for managing experiments on [Proliferate](https://proliferate.alps.scienc
 
 The behavior is similar to various versions of [Submiterator](https://github.com/sebschu/Submiterator) but is intended to be used with Proliferate and Prolific.
 
-[![Documentation Status](https://readthedocs.org/projects/proliferate-client/badge/?version=latest)](https://proliferate-client.readthedocs.io/en/latest/?badge=latest) [Documentation](https://proliferate-client.readthedocs.org/)
+[Documentation](https://proliferate-client.readthedocs.org/) [![Documentation Status](https://readthedocs.org/projects/proliferate-client/badge/?version=latest)](https://proliferate-client.readthedocs.io/en/latest/?badge=latest)
