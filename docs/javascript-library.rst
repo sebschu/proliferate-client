@@ -17,7 +17,7 @@ Add the following ``<script>`` tag within the ``<head>`` tag of your experiment 
 
 .. note::
 
-    This library requires `jQuery library <https://jquery.com/>`_. If you are already using jQuery in your
+    This library requires the `jQuery library <https://jquery.com/>`_. If you are already using jQuery in your
     experiment, make sure to include the above ``<script>`` tag after loading jQuery. If you are not using
     jQuery, add the following ``<script>`` tag before loading the proliferate library:
     
@@ -37,6 +37,8 @@ To submit data at the end of the experiment, use the ``proliferate.submit`` func
     :param success_fct: An optional function with one argument that gets called if sending the data to the server succeeds. If not specified, participants will be automatically redirected to the Prolific completion URL after the data has been uploaded.
     :param failure_fct: An optional function with one argument that gets called if sending the data to the server fails. If not specified, participants receive an error message asking them to message the researcher to get compensated.
 
+If you have an HTML tag with the id ``thanks`` in your experiment, the default success and failure functions will keep participants updated on the status of the upload.
+
 
 Experiment integration
 ------------------------
@@ -55,6 +57,7 @@ with
 .. code-block:: js
 
     proliferate.submit(exp.data);
+
 
 
 ------
