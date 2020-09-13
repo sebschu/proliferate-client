@@ -28,7 +28,7 @@ that are used by many labs at Stanford but it can also be used with any other ex
 
 It consists of three different components:
 
-1. a :doc:`command line interface (CLI) </cli/index>` and a web interface for interfacing with the proliferate server
+1. a :doc:`command line interface (CLI) </cli/index>` and a :doc:`web interface </web-interface>` for interfacing with the proliferate server
 2. a :doc:`JavaScript library </javascript-library>` for submitting the data from your experiment and redirecting participants to the completion URL
 3. a :doc:`server </server>` for collecting, storing, and downloading participant data
 
