@@ -12,11 +12,3 @@ The server is hosted by the `Stanford ALPS lab <http://alpslab.stanford.edu>`_ a
 `<https://proliferate.alps.science/admin/>`_. You can sign up for an account at
 `<https://proliferate.alps.science/admin/signup>`_.
 
-Disclaimer
--------------
-
-Please note that you are using the server at **your own risk**. It is hosted on a reliable
-cloud computing provider and we are creating daily backups of all the data 
-but we can nevertheless NOT guarantee that there will be no outages or data loss.
-You should always download all data from an experiment after running it and backup your data!
-
