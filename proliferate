@@ -73,15 +73,15 @@ def main():
   subcommand = args.subcommand
   label = args.experimentname
 
-  
-  if subcommand == "post":
+
+  if subcommand == "post" or subcommand == "posthit":
       exp_config = parse_config(label)
       post_exp(label, exp_config)
   elif subcommand == "getresults":
       results = get_results(label, debug=args.sandbox)
   elif subcommand == "info":
       get_info(label)
-  elif subcommand == "push":
+  elif subcommand == "push" or subcommand == "update":
       exp_config = parse_config(label)
       push_exp(label, exp_config)
   elif subcommand == "pull":
