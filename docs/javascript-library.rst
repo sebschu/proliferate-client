@@ -68,6 +68,8 @@ If you are using `jsPsych <https://www.jspsych.org>`_ set the ``on_finish`` prop
 
     jsPsych.init({
       timeline: exp,
-      on_finish: proliferate.submit
+      on_finish: function(data) { 
+        proliferate.submit({"trials": data.values()});
+      }
     });
 
