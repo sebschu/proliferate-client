@@ -62,7 +62,7 @@ with
 
 ------
 
-If you are using `jsPsych <https://www.jspsych.org>`_ set the ``on_finish`` property in the ``init()`` call  to ``proliferate.submit``:
+If you are using `jsPsych <https://www.jspsych.org>`_ set the ``on_finish`` property in the ``init()`` call  to a function that calls ``proliferate.submit``:
 
 .. code-block:: js
 
