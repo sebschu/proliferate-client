@@ -114,7 +114,17 @@ abandoned (A) your experiment. The last number is the number of participants you
 when creating the experiment.
 
 .. image:: _static/imgs/web_detail_conditions.png
+
+.. note:: 
   
+  proliferate does not have access to the participant data from Prolific and therefore the number of started/completed/abandoned participants may be slightly different from what you see on Prolific. Here is what these values mean on proliferate.
+  
+    :started: The number of participants who have started the study on Prolific and accessed your experiment.
+    :completed: The number of participants who have succesfully completed the experiment and submitted their data. If something goes wrong while submitting the data, a participant won't show up as completed.
+    :abandoned: The number of participants who have accessed your experiment but then closed it before submitting the data. This is most likely because they either returned the experiment on Prolific or did not complete it before the timeout set by Prolific.
+    :requested: If you set the number of participants when creating the experiment, this number will show up as "requested".
+
+
 Under "Participants" you will see the individual participants and their status. Once a
 participant has completed the experiment, you can also view their data by clicking on "Data" and
 :ref:`plot <web-plot>` their data.
