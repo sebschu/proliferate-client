@@ -1,6 +1,6 @@
 .. _javascript-library:
 
-JavasScript library
+JavaScript library
 =======================================
 
 The JavaScript library provides a function to submit the data to the proliferate 
